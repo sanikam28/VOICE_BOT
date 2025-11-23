@@ -1,4 +1,3 @@
-#HIIIIIIIIII
 import os 
 from io import BytesIO
 from dotenv import load_dotenv
