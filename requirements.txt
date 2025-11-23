@@ -1,0 +1,26 @@
+# core & compatibility (tested combo)
+langchain==0.2.11
+langchain-core==0.2.35
+langchain-community==0.2.10
+langchain-groq==0.1.5
+
+# embeddings / sentence transformers
+sentence-transformers==2.2.2
+
+# vectorstore
+chromadb==0.3.29
+
+# elevenlabs
+elevenlabs==0.2.14
+
+# speech & playback
+SpeechRecognition==3.9.0
+pydub==0.25.1
+simpleaudio==1.1.0
+
+# fallback TTS
+gTTS==2.4.0
+
+# others
+python-dotenv==1.0.0
+pyaudio==0.2.14   # if this fails on pip, use pipwin to install it
