@@ -18,19 +18,6 @@ This project uses the following major libraries:
 | python-dotenv | 1.0.1 | Environment variable loader |
 | requests | 2.32.3 | API requests |
 
-PDF STRUCTURE
-
-voice-rag-assistant
-│── app.py
-│── voice_chatbot.py
-│── ingest.py
-│── requirements.txt
-│── .env.example
-│── README.md
-│
-├── vectorstore/
-├── pdf_docs/
-
 WEBSITES TO GENERATE API KEYS
 
 GROQ API Key:
