@@ -1,97 +1,77 @@
-import os 
+import os
 from io import BytesIO
 from dotenv import load_dotenv
 import gradio as gr
 from elevenlabs import ElevenLabs
+import speech_recognition as sr
 
-# Embeddings + Vector Store
+# LangChain Components
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
-
-# LLM
 from langchain_groq import ChatGroq
 
-# Memory
-from langchain_core.messages import HumanMessage, AIMessage
+
+# -------------------- ENVIRONMENT SETUP --------------------
+def load_api_clients():
+    load_dotenv()
+    groq_key = os.getenv("GROQ_API_KEY")
+    eleven_key = os.getenv("ELEVENLABS_API_KEY")
+    
+    tts_client = ElevenLabs(api_key=eleven_key)
+    llm_client = ChatGroq(groq_api_key=groq_key, model="llama-3.1-8b-instant")
+    
+    return tts_client, llm_client
 
 
-
-# -------------------- LOAD API KEYS --------------------
-load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-
-tts_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-
-
-# -------------------- VECTOR STORE --------------------
-embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-
-vectorstore = Chroma(
-    persist_directory="chroma_db",
-    embedding_function=embeddings
-)
-
-
-# -------------------- LLM + MEMORY --------------------
-llm = ChatGroq(
-    groq_api_key=GROQ_API_KEY,
-    model="llama-3.1-8b-instant"
-)
-
-
-
-# -------------------- HYBRID QA FUNCTION --------------------
-def answer_question(user_text):
-    """
-    If PDF contains relevant answer → use RAG
-    Else → fallback to Groq LLM general knowledge
-    """
+# -------------------- SPEECH RECOGNITION --------------------
+def transcribe_audio(audio_file_path):
+    """Convert speech to text using Google Speech Recognition."""
+    recognizer = sr.Recognizer()
     try:
-        # Search vector database
+        with sr.AudioFile(audio_file_path) as source:
+            audio = recognizer.record(source)
+            return recognizer.recognize_google(audio)
+    except Exception as e:
+        return f"Error in speech recognition: {e}"
+
+
+# -------------------- VECTOR STORE SETUP --------------------
+def load_vectorstore():
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    return Chroma(persist_directory="chroma_db", embedding_function=embeddings)
+
+
+# -------------------- HYBRID QA (RAG + LLM) --------------------
+def answer_question(user_text, llm, vectorstore):
+    """Hybrid approach: use RAG if relevant context exists, else fallback to LLM."""
+    try:
         docs = vectorstore.similarity_search(user_text, k=2)
 
-        # If similarity search returned nothing → fallback to LLM
+        # No docs found → use LLM
         if not docs:
             return llm.invoke(user_text).content
 
-        # If context is not relevant enough → fallback to LLM
-        # (Basic relevance check)
-        # NOTE: Chroma doesn't provide distance in metadata,
-        # so we check text overlap instead — simple but effective.
         context_text = " ".join([d.page_content for d in docs])
+
+        # Basic relevance check (word overlap)
         if len(set(user_text.lower().split()) & set(context_text.lower().split())) < 2:
             return llm.invoke(user_text).content
 
-        # If relevant → RAG answer
         prompt = f"Use the following context to answer:\n\n{context_text}\n\nQuestion: {user_text}"
-        response = llm.invoke(prompt)
-        return response.content
+        return llm.invoke(prompt).content
 
     except Exception as e:
-        return f"Error in processing: {e}"
+        return f"RAG/LLM Error: {e}"
 
 
-# -------------------- AUDIO PIPELINE --------------------
-def bot_pipeline(audio_file, history):
+# -------------------- TEXT TO SPEECH --------------------
+def synthesize_speech(text, tts_client):
+    """Convert bot text reply into an audio file."""
     try:
-        import speech_recognition as sr
-        
-        recognizer = sr.Recognizer()
-
-        # Speech → Text
-        with sr.AudioFile(audio_file) as source:
-            audio = recognizer.record(source)
-            user_text = recognizer.recognize_google(audio)
-
-        # Get answer (Hybrid RAG)
-        bot_reply = answer_question(user_text)
-
-        # Text → Voice
         response = tts_client.text_to_speech.convert(
             voice_id="FGY2WhTYpPnrIDTdsKH5",
             model_id="eleven_multilingual_v2",
-            text=bot_reply,
+            text=text,
         )
 
         audio_stream = BytesIO()
@@ -104,32 +84,50 @@ def bot_pipeline(audio_file, history):
         with open(output_path, "wb") as f:
             f.write(audio_stream.read())
 
-        # Update UI Chat History
-        history.append((user_text, bot_reply))
-        return history, output_path
+        return output_path
 
     except Exception as e:
-        history.append(("Error", str(e)))
+        return f"Error in text-to-speech: {e}"
+
+
+# -------------------- MAIN BOT PIPELINE --------------------
+def bot_pipeline(audio_file, history):
+    user_text = transcribe_audio(audio_file)
+
+    if "Error" in user_text:
+        history.append(("Error", user_text))
         return history, None
+
+    bot_reply = answer_question(user_text, llm, vectorstore)
+    audio_output = synthesize_speech(bot_reply, tts_client)
+
+    history.append((user_text, bot_reply))
+    return history, audio_output
+
+
+# -------------------- INITIALIZE GLOBAL CLIENTS --------------------
+tts_client, llm = load_api_clients()
+vectorstore = load_vectorstore()
 
 
 # -------------------- GRADIO UI --------------------
-with gr.Blocks() as demo:
-    gr.Markdown("## 💬 Insurance Voice Chatbot")
+def launch_app():
+    with gr.Blocks() as demo:
+        gr.Markdown("## 💬 Insurance Voice Chatbot")
 
-    with gr.Row():
-        with gr.Column():
-            audio_in = gr.Audio(sources=["microphone"], type="filepath", label="🎤 Speak here")
-            send_btn = gr.Button("Send")
-        
-        with gr.Column():
-            chatbot = gr.Chatbot(label="Conversation", height=400, bubble_full_width=False)
-            audio_out = gr.Audio(label="🔊 Bot Reply", type="filepath")
+        with gr.Row():
+            with gr.Column():
+                audio_in = gr.Audio(sources=["microphone"], type="filepath", label="🎤 Speak here")
+                send_btn = gr.Button("Send")
 
-    send_btn.click(
-        fn=bot_pipeline,
-        inputs=[audio_in, chatbot],
-        outputs=[chatbot, audio_out]
-    )
+            with gr.Column():
+                chatbot = gr.Chatbot(label="Conversation", height=400, bubble_full_width=False)
+                audio_out = gr.Audio(label="🔊 Bot Reply", type="filepath")
 
-demo.launch()
+        send_btn.click(fn=bot_pipeline, inputs=[audio_in, chatbot], outputs=[chatbot, audio_out])
+
+    demo.launch()
+
+
+if __name__ == "__main__":
+    launch_app()
