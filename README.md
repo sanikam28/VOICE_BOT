@@ -20,24 +20,26 @@ This project uses the following major libraries:
 
 PDF STRUCTURE
 
-📂 voice-rag-assistant
-│── 📄 app.py
-│── 📄 rag_pipeline.py
-│── 📄 speech_utils.py
-│── 📄 requirements.txt
-│── 📄 .env.example
-│── 📂 vectorstore
-│── 📂 pdf_docs
-│── 📄 README.md
+voice-rag-assistant
+│── app.py
+│── rag_pipeline.py
+│── speech_utils.py
+│── requirements.txt
+│── .env.example
+│── README.md
+│
+├── vectorstore/
+├── pdf_docs/
 
-WEBSITES FOR API KEYS
+WEBSITES TO GENERATE API KEYS
 
-👉 https://console.groq.com (GROQ API)
-👉 https://elevenlabs.io (ELEVENLABS API)
+GROQ API Key:
+https://console.groq.com
 
+ElevenLabs API Key:
+https://elevenlabs.io
 
-SAMPLE QUERIES
-
-User Says	                             Bot Responds
-"Documents required to file a claim?"	 Explains step-by-step claim filing
-"What is insuarance policy?"             Tells you in detail
+💬 Sample User Queries & Bot Responses
+User Says	                           Bot Responds
+Documents required to file a claim?	   Explains step-by-step claim filing
+What is insurance policy?	           Tells you in detail
