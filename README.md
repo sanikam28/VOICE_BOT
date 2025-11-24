@@ -22,8 +22,8 @@ PDF STRUCTURE
 
 voice-rag-assistant
 │── app.py
-│── rag_pipeline.py
-│── speech_utils.py
+│── voice_chatbot.py
+│── ingest.py
 │── requirements.txt
 │── .env.example
 │── README.md
@@ -38,8 +38,3 @@ https://console.groq.com
 
 ElevenLabs API Key:
 https://elevenlabs.io
-
-💬 Sample User Queries & Bot Responses
-User Says	                           Bot Responds
-Documents required to file a claim?	   Explains step-by-step claim filing
-What is insurance policy?	           Tells you in detail
